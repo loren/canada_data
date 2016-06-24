@@ -1,25 +1,39 @@
-# This is a template for a Ruby scraper on morph.io (https://morph.io)
-# including some code snippets below that you should find helpful
+require 'scraperwiki'
+require 'csv'
 
-# require 'scraperwiki'
-# require 'mechanize'
-#
-# agent = Mechanize.new
-#
-# # Read in a page
-# page = agent.get("http://foo.com")
-#
-# # Find somehing on the page using css selectors
-# p page.at('div.content')
-#
-# # Write out to the sqlite database using scraperwiki library
-# ScraperWiki.save_sqlite(["name"], {"name" => "susan", "occupation" => "software developer"})
-#
-# # An arbitrary query against the database
-# ScraperWiki.select("* from data where 'name'='peter'")
+ENDPOINT = 'https://buyandsell.gc.ca/procurement-data/csv/tender/active'
 
-# You don't have to do things with the Mechanize or ScraperWiki libraries.
-# You can use whatever gems you want: https://morph.io/documentation/ruby
-# All that matters is that your final data is written to an SQLite database
-# called "data.sqlite" in the current working directory which has at least a table
-# called "data".
+def clean_table
+  ScraperWiki.sqliteexecute('DELETE FROM data')
+rescue SqliteMagic::NoSuchTable
+  puts "Data table does not exist yet"
+end
+
+def fetch_results
+  raw = strip_bom(open(ENDPOINT, 'r:utf-8').read)
+  doc = CSV.parse(raw, headers: true, encoding: 'UTF-8')
+  doc.map { |entry| process_entry entry.to_h }.each do |lead|
+    ScraperWiki.save_sqlite(%w(language reference_number), lead)
+  end
+end
+
+def strip_bom(text)
+  text.sub(/^\xef\xbb\xbf/, '')
+end
+
+def process_entry(lead)
+  lead['gsin'] &&= split_industries(lead['gsin'])
+  lead
+end
+
+def split_industries(gsin)
+  regex_split = gsin.split(/, ([0-9A-Z]+ -)/)
+  segments = [regex_split.shift]
+  industries = segments.push regex_split.each_slice(2).map(&:join)
+  industries.flatten.join(' | ')
+rescue
+  gsin
+end
+
+clean_table
+fetch_results
