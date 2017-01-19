@@ -13,6 +13,7 @@ def fetch_results
   raw = strip_bom(open(ENDPOINT, 'r:utf-8').read)
   doc = CSV.parse(raw, headers: true, encoding: 'UTF-8')
   doc.map { |entry| process_entry entry.to_h }.each do |lead|
+    puts lead
     ScraperWiki.save_sqlite(%w(language reference_number), lead)
   end
 end
