@@ -24,6 +24,7 @@ end
 
 def process_entry(lead)
   lead['gsin'] &&= split_industries(lead['gsin'])
+  lead.delete(nil)
   lead
 end
 
